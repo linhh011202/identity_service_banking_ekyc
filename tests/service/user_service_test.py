@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.core.ecode import Error
-from app.core.exceptions import ErrInvalidCredentials, ErrUserNotFound, ErrDatabaseError
+from app.core.exceptions import ErrInvalidCredentials, ErrUserNotFound
 from app.model import UserModel
 from app.service.user_service import UserService
 
