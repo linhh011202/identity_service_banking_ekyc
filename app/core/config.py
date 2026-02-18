@@ -1,41 +1,49 @@
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List
 
-from dotenv import load_dotenv
-from pydantic_settings import BaseSettings
-from pydantic import computed_field
-
-load_dotenv()
+import yaml
 
 
-class Configs(BaseSettings):
+def _load_yaml_config() -> dict:
+    """Load configuration from config.yaml file."""
+    config_path = Path(__file__).resolve().parents[2] / "config.yaml"
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+
+
+_raw = _load_yaml_config()
+
+
+@dataclass(frozen=True)
+class Configs:
     # Project name
-    PROJECT_NAME: str
+    PROJECT_NAME: str = _raw.get("project_name", "")
 
     # API
-    API: str = "/api"
-    API_V1_STR: str = "/api/v1"
+    API: str = _raw.get("api", {}).get("prefix", "/api")
+    API_V1_STR: str = _raw.get("api", {}).get("v1_prefix", "/api/v1")
 
     # Database config
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
-    POSTGRES_HOST: str
-    POSTGRES_PORT: int
+    POSTGRES_USER: str = _raw.get("database", {}).get("user", "")
+    POSTGRES_PASSWORD: str = _raw.get("database", {}).get("password", "")
+    POSTGRES_DB: str = _raw.get("database", {}).get("db", "")
+    POSTGRES_HOST: str = _raw.get("database", {}).get("host", "")
+    POSTGRES_PORT: int = _raw.get("database", {}).get("port", 5432)
 
     # Other config
-    TZ: str = "Asia/Singapore"
+    TZ: str = _raw.get("timezone", "Asia/Singapore")
 
-    # BACKEND_CORS_ORIGINS is a JSON-formatted list of origins
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]
+    # BACKEND_CORS_ORIGINS
+    BACKEND_CORS_ORIGINS: List[str] = field(
+        default_factory=lambda: _raw.get("cors", {}).get("origins", ["*"])
+    )
 
-    @computed_field
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 configs = Configs()

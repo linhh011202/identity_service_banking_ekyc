@@ -12,6 +12,7 @@ wheels/
 
 # Environment variables
 .env
+config.yaml
 
 # Lock files
 uv.lock
