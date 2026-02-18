@@ -10,19 +10,19 @@ from app.dto.user.response.get_user_response import GetUserResponse
 from app.dto.user.response.login_response import LoginResponse
 from app.dto.user.response.register_response import RegisterResponse
 from app.service.user_service import UserService
-from app.dto.user.request.login_request import LoginRequest  # thêm import
+from app.dto.user.request.login_request import LoginRequest
 
 
 router = APIRouter(prefix="/user", tags=["user"])
 
 
-@router.post("/get-by-username", response_model=BaseResponse[GetUserResponse])
+@router.post("/get-by-email", response_model=BaseResponse[GetUserResponse])
 @inject
-def get_user_by_username(
+def get_user_by_email(
     request: GetUserRequest,
     user_service: UserService = Depends(Provide[Container.user_service]),
 ) -> BaseResponse[GetUserResponse] | JSONResponse:
-    user, err = user_service.get_user_by_username(request.username)
+    user, err = user_service.get_user_by_email(request.email)
     if err:
         return JSONResponse(
             status_code=err.http_status,
@@ -40,11 +40,15 @@ def get_user_by_username(
 @router.post("/register", response_model=BaseResponse[RegisterResponse])
 @inject
 def register_user(
-    #
     request: RegisterRequest,
     user_service: UserService = Depends(Provide[Container.user_service]),
 ) -> BaseResponse[RegisterResponse] | JSONResponse:
-    user, err = user_service.register_user(request.username, request.password)
+    user, err = user_service.register_user(
+        email=request.email,
+        password=request.password,
+        full_name=request.full_name,
+        phone_number=request.phone_number,
+    )
     if err:
         return JSONResponse(
             status_code=err.http_status,
@@ -64,7 +68,7 @@ def login(
     request: LoginRequest,
     user_service: UserService = Depends(Provide[Container.user_service]),
 ) -> BaseResponse[LoginResponse] | JSONResponse:
-    user, err = user_service.login(request.username, request.password)
+    user, err = user_service.login(request.email, request.password)
     if err:
         return JSONResponse(
             status_code=err.http_status,

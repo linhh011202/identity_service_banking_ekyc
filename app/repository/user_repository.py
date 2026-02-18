@@ -1,6 +1,6 @@
 import logging
 from contextlib import AbstractContextManager
-from typing import Callable
+from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -19,53 +19,62 @@ class UserRepository(BaseRepository):
         super().__init__(session_factory, UserModel)
         logger.info("UserRepository initialized")
 
-    def get_by_username(self, username: str) -> tuple[UserModel | None, Error | None]:
-        logger.debug(f"Querying database for user with username: {username}")
+    def get_by_email(self, email: str) -> tuple[UserModel | None, Error | None]:
+        logger.debug(f"Querying database for user with email: {email}")
         try:
             with self.session_factory() as session:
                 user = (
                     session.query(self.model)
-                    .filter(self.model.username == username)
+                    .filter(self.model.email == email)
                     .first()
                 )
                 if user is None:
-                    logger.warning(f"User not found: {username}")
+                    logger.warning(f"User not found: {email}")
                     return None, Error(
                         ErrUserNotFound.code,
-                        f"User with username '{username}' not found",
+                        f"User with email '{email}' not found",
                     )
-                logger.info(f"User found in database: {username}")
+                logger.info(f"User found in database: {email}")
                 return user, None
         except Exception as e:
             logger.error(
-                f"Database error while querying user '{username}': {str(e)}",
+                f"Database error while querying user '{email}': {str(e)}",
                 exc_info=True,
             )
             return None, Error(ErrDatabaseError.code, f"Database error: {str(e)}")
 
     def create(
-        self, username: str, password_hash: str
+        self,
+        email: str,
+        password_hashed: str,
+        full_name: Optional[str] = None,
+        phone_number: Optional[str] = None,
     ) -> tuple[UserModel | None, Error | None]:
-        logger.debug(f"Creating user: {username}")
+        logger.debug(f"Creating user: {email}")
         try:
             with self.session_factory() as session:
                 try:
-                    user = self.model(username=username, password_hash=password_hash)
+                    user = self.model(
+                        email=email,
+                        password_hashed=password_hashed,
+                        full_name=full_name,
+                        phone_number=phone_number,
+                    )
                     session.add(user)
                     session.commit()
                     session.refresh(user)
-                    logger.info(f"User created: {username}")
+                    logger.info(f"User created: {email}")
                     return user, None
                 except IntegrityError:
                     session.rollback()
-                    logger.warning(f"Duplicate username: {username}")
+                    logger.warning(f"Duplicate email or phone_number: {email}")
                     return None, Error(
                         ErrUserAlreadyExists.code,
-                        f"Username '{username}' already exists",
+                        f"User with email '{email}' or phone number already exists",
                     )
         except Exception as e:
             logger.error(
-                f"Database error while creating user '{username}': {str(e)}",
+                f"Database error while creating user '{email}': {str(e)}",
                 exc_info=True,
             )
             return None, Error(ErrDatabaseError.code, f"Database error: {str(e)}")

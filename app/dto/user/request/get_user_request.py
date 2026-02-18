@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 
 class GetUserRequest(BaseModel):
-    username: str = Field(..., min_length=1, description="Username to search for")
+    email: EmailStr = Field(..., description="Email to search for")

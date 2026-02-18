@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlmodel import Field
 
 from app.model.base_model import BaseModel
@@ -6,8 +8,7 @@ from app.model.base_model import BaseModel
 class UserModel(BaseModel, table=True):
     __tablename__ = "tb_users"
 
-    username: str = Field(index=True, nullable=False, unique=True)
-    password_hash: str = Field(nullable=False)
-
-
-# đây là cái cái liên kết giữa cái model với database
+    email: Optional[str] = Field(default=None, index=True, unique=True)
+    phone_number: Optional[str] = Field(default=None, unique=True)
+    full_name: Optional[str] = Field(default=None)
+    password_hashed: Optional[str] = Field(default=None)

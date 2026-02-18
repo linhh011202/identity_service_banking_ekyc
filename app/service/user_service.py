@@ -1,8 +1,9 @@
 import logging
+from typing import Optional
 
 from app.core.ecode import Error
-from app.core.exceptions import ErrInvalidCredentials  # thêm import
-from app.util.security import hash_password, verify_password  # thêm import
+from app.core.exceptions import ErrInvalidCredentials
+from app.util.security import hash_password, verify_password
 from app.model import UserModel
 from app.repository import UserRepository
 from app.service.base_service import BaseService
@@ -16,41 +17,50 @@ class UserService(BaseService):
         super().__init__(user_repository)
         logger.info("UserService initialized")
 
-    def get_user_by_username(
-        self, username: str
+    def get_user_by_email(
+        self, email: str
     ) -> tuple[UserModel | None, Error | None]:
-        logger.info(f"Getting user by username: {username}")
-        user, error = self._user_repository.get_by_username(username)
+        logger.info(f"Getting user by email: {email}")
+        user, error = self._user_repository.get_by_email(email)
         if error:
-            logger.warning(f"Failed to get user '{username}': {error.message}")
+            logger.warning(f"Failed to get user '{email}': {error.message}")
         else:
-            logger.info(f"Successfully retrieved user '{username}'")
+            logger.info(f"Successfully retrieved user '{email}'")
         return user, error
 
     def register_user(
-        self, username: str, password: str
+        self,
+        email: str,
+        password: str,
+        full_name: Optional[str] = None,
+        phone_number: Optional[str] = None,
     ) -> tuple[UserModel | None, Error | None]:
-        logger.info(f"Registering user: {username}")
+        logger.info(f"Registering user: {email}")
         pwd_hash = hash_password(password)
-        user, error = self._user_repository.create(username, pwd_hash)
+        user, error = self._user_repository.create(
+            email=email,
+            password_hashed=pwd_hash,
+            full_name=full_name,
+            phone_number=phone_number,
+        )
         if error:
-            logger.warning(f"Failed to register '{username}': {error.message}")
+            logger.warning(f"Failed to register '{email}': {error.message}")
         else:
-            logger.info(f"Registered '{username}' successfully")
+            logger.info(f"Registered '{email}' successfully")
         return user, error
 
     def login(
-        self, username: str, password: str
+        self, email: str, password: str
     ) -> tuple[UserModel | None, Error | None]:
-        logger.info(f"Login attempt: {username}")
-        user, error = self._user_repository.get_by_username(username)
+        logger.info(f"Login attempt: {email}")
+        user, error = self._user_repository.get_by_email(email)
         if error:
-            logger.warning(f"Login failed, user not found: {username}")
+            logger.warning(f"Login failed, user not found: {email}")
             return None, error
-        if not verify_password(password, user.password_hash):
-            logger.warning(f"Login failed, invalid credentials: {username}")
+        if not verify_password(password, user.password_hashed):
+            logger.warning(f"Login failed, invalid credentials: {email}")
             return None, Error(
-                ErrInvalidCredentials.code, "invalid username or password"
+                ErrInvalidCredentials.code, "invalid email or password"
             )
-        logger.info(f"Login successful: {username}")
+        logger.info(f"Login successful: {email}")
         return user, None
