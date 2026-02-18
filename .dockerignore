@@ -1,0 +1,14 @@
+.venv
+.git
+.gitignore
+.ruff_cache
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+app.log
+.vscode
+.pytest_cache
+tests
+README.md
+makefile

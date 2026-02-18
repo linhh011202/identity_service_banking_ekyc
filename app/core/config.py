@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
@@ -6,8 +7,16 @@ import yaml
 
 
 def _load_yaml_config() -> dict:
-    """Load configuration from config.yaml file."""
-    config_path = Path(__file__).resolve().parents[2] / "config.yaml"
+    """Load configuration from config.yaml file.
+
+    The path is resolved in order:
+      1. CONFIG_PATH environment variable (used by Cloud Run secret mount)
+      2. config.yaml at the project root (local development)
+    """
+    config_path = Path(
+        os.environ.get("CONFIG_PATH")
+        or Path(__file__).resolve().parents[2] / "config.yaml"
+    )
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
     with open(config_path, "r") as f:
@@ -27,11 +36,21 @@ class Configs:
     API_V1_STR: str = _raw.get("api", {}).get("v1_prefix", "/api/v1")
 
     # Database config
-    POSTGRES_USER: str = _raw.get("database", {}).get("user", "")
-    POSTGRES_PASSWORD: str = _raw.get("database", {}).get("password", "")
-    POSTGRES_DB: str = _raw.get("database", {}).get("db", "")
-    POSTGRES_HOST: str = _raw.get("database", {}).get("host", "")
-    POSTGRES_PORT: int = _raw.get("database", {}).get("port", 5432)
+    POSTGRES_USER: str = os.environ.get("POSTGRES_USER") or _raw.get(
+        "database", {}
+    ).get("user", "")
+    POSTGRES_PASSWORD: str = os.environ.get("POSTGRES_PASSWORD") or _raw.get(
+        "database", {}
+    ).get("password", "")
+    POSTGRES_DB: str = os.environ.get("POSTGRES_DB") or _raw.get("database", {}).get(
+        "db", ""
+    )
+    POSTGRES_HOST: str = os.environ.get("POSTGRES_HOST") or _raw.get(
+        "database", {}
+    ).get("host", "")
+    POSTGRES_PORT: int = int(
+        os.environ.get("POSTGRES_PORT") or _raw.get("database", {}).get("port", 5432)
+    )
 
     # Other config
     TZ: str = _raw.get("timezone", "Asia/Singapore")
