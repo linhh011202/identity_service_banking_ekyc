@@ -40,8 +40,10 @@ jobs:
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Update Secret Manager
+        env:
+          CONFIG_CONTENT: ${{ secrets.APPLICATION_CONFIG }}
         run: |
-          echo "${{ secrets.APPLICATION_CONFIG }}" > config.yaml
+          printf '%s\n' "$CONFIG_CONTENT" > config.yaml
           gcloud secrets versions add application-config --data-file=config.yaml
 
       - name: Build and Push Image

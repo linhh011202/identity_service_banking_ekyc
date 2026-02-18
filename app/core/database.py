@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 
 class Database:
     def __init__(self, db_url: str) -> None:
-        self._engine = create_engine(db_url, echo=True)
+        self._engine = create_engine(
+            db_url,
+            echo=True,
+            pool_pre_ping=True,
+            connect_args={"connect_timeout": 10},
+        )
         self._session_factory = orm.scoped_session(
             orm.sessionmaker(
                 autocommit=False,
