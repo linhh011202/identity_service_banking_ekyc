@@ -1,0 +1,29 @@
+{
+   "version": "0.2.0",
+   "configurations": [
+      {
+         "name": "FastAPI (uv dev)",
+         "type": "debugpy",
+         "request": "launch",
+         "module": "fastapi",
+         "args": ["dev", "app/main.py", "--port", "8000"],
+         "python": "${workspaceFolder}/.venv/bin/python",
+         "cwd": "${workspaceFolder}",
+         "env": {},
+         "jinja": true,
+         "autoReload": {
+            "enable": true
+         }
+      },
+      {
+         "name": "FastAPI (uv run)",
+         "type": "debugpy",
+         "request": "launch",
+         "module": "fastapi",
+         "args": ["run", "app/main.py", "--port", "8000"],
+         "python": "${workspaceFolder}/.venv/bin/python",
+         "cwd": "${workspaceFolder}",
+         "env": {}
+      }
+   ]
+}

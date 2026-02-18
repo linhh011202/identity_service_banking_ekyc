@@ -1,0 +1,66 @@
+{
+   "version": "2.0.0",
+   "tasks": [
+      {
+         "label": "uv: sync",
+         "type": "shell",
+         "command": "uv sync",
+         "problemMatcher": [],
+         "presentation": {
+            "reveal": "always",
+            "panel": "new"
+         },
+         "group": {
+            "kind": "build",
+            "isDefault": false
+         }
+      },
+      {
+         "label": "uv: lock",
+         "type": "shell",
+         "command": "uv lock",
+         "problemMatcher": [],
+         "presentation": {
+            "reveal": "always",
+            "panel": "new"
+         }
+      },
+      {
+         "label": "lint: ruff check",
+         "type": "shell",
+         "command": "uv run ruff check .",
+         "problemMatcher": [],
+         "presentation": {
+            "reveal": "always",
+            "panel": "shared"
+         },
+         "group": {
+            "kind": "test",
+            "isDefault": false
+         }
+      },
+      {
+         "label": "lint: ruff format",
+         "type": "shell",
+         "command": "uv run ruff format .",
+         "problemMatcher": [],
+         "presentation": {
+            "reveal": "always",
+            "panel": "shared"
+         }
+      },
+      {
+         "label": "sync & lint",
+         "dependsOn": [
+            "uv: sync",
+            "lint: ruff check"
+         ],
+         "dependsOrder": "sequence",
+         "problemMatcher": [],
+         "group": {
+            "kind": "build",
+            "isDefault": true
+         }
+      }
+   ]
+}

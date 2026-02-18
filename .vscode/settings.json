@@ -1,0 +1,6 @@
+{
+   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+   "terminal.integrated.env.linux": {
+      "CONDA_AUTO_ACTIVATE_BASE": "false"
+   },
+}
