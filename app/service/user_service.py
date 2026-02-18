@@ -17,9 +17,7 @@ class UserService(BaseService):
         super().__init__(user_repository)
         logger.info("UserService initialized")
 
-    def get_user_by_email(
-        self, email: str
-    ) -> tuple[UserModel | None, Error | None]:
+    def get_user_by_email(self, email: str) -> tuple[UserModel | None, Error | None]:
         logger.info(f"Getting user by email: {email}")
         user, error = self._user_repository.get_by_email(email)
         if error:
@@ -49,9 +47,7 @@ class UserService(BaseService):
             logger.info(f"Registered '{email}' successfully")
         return user, error
 
-    def login(
-        self, email: str, password: str
-    ) -> tuple[UserModel | None, Error | None]:
+    def login(self, email: str, password: str) -> tuple[UserModel | None, Error | None]:
         logger.info(f"Login attempt: {email}")
         user, error = self._user_repository.get_by_email(email)
         if error:
@@ -59,8 +55,6 @@ class UserService(BaseService):
             return None, error
         if not verify_password(password, user.password_hashed):
             logger.warning(f"Login failed, invalid credentials: {email}")
-            return None, Error(
-                ErrInvalidCredentials.code, "invalid email or password"
-            )
+            return None, Error(ErrInvalidCredentials.code, "invalid email or password")
         logger.info(f"Login successful: {email}")
         return user, None

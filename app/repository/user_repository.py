@@ -24,9 +24,7 @@ class UserRepository(BaseRepository):
         try:
             with self.session_factory() as session:
                 user = (
-                    session.query(self.model)
-                    .filter(self.model.email == email)
-                    .first()
+                    session.query(self.model).filter(self.model.email == email).first()
                 )
                 if user is None:
                     logger.warning(f"User not found: {email}")
