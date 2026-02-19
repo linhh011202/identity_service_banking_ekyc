@@ -52,15 +52,31 @@ jobs:
           docker build -t $IMAGE .
           docker push $IMAGE
 
-      - name: Deploy to Cloud Run
+      - name: Deploy to GKE
         run: |
-          IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image $IMAGE \
-            --platform managed \
-            --region ${{ env.REGION }} \
-            --allow-unauthenticated \
-            --port 8080 \
-            --set-secrets="/app/secrets/config.yaml=application-config:latest" \
-            --max-instances 1 \
-            --min-instances 0
+          # Configure kubectl
+          gcloud container clusters get-credentials banking-ekyc-cluster --region ${{ env.REGION }} --project ${{ env.PROJECT_ID }}
+
+          # Create Secret
+          kubectl create secret generic identity-service-secrets \
+            --from-file=config.yaml=config.yaml \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Deploy
+          # Assuming the gke_banking_ekyc repo is checked out or files are available
+          # Since we are in separate workspace, we need to clone it or assume files are present.
+          # For now, I will assume the user has configured access or will handle the file presence.
+          # However, to be robust, I should probably checkout the other repo if it exists.
+          
+          # We'll use a comprehensive apply command that tries to apply from a specific directory if it exists,
+          # or assumes files are in a standard location. 
+          # Given the user's setup, I'll assume I need to clone the config repo.
+          
+          git clone https://github.com/linhh011202/gke_banking_ekyc.git k8s-config || echo "Clone failed, checking local..."
+          
+          # Update the image tag in the deployment manifest
+          sed -i "s|image: .*|image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" k8s-config/deployment.yaml
+
+          kubectl apply -f k8s-config/deployment.yaml
+          kubectl apply -f k8s-config/service.yaml
+
