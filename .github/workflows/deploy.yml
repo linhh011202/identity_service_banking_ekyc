@@ -41,6 +41,12 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
+      - name: Fetch Firebase Credentials from Secret Manager
+        run: |
+          gcloud secrets versions access latest \
+            --secret=firebase-credentials \
+            --project=${{ env.PROJECT_ID }} > firebase_credentials.json
+
       - name: Update Secret Manager
         env:
           CONFIG_CONTENT: ${{ secrets.APPLICATION_CONFIG }}
@@ -62,6 +68,7 @@ jobs:
           # Create Secret
           kubectl create secret generic identity-service-secrets \
             --from-file=config.yaml=config.yaml \
+            --from-file=firebase_credentials.json=firebase_credentials.json \
             --dry-run=client -o yaml | kubectl apply -f -
 
           # Deploy

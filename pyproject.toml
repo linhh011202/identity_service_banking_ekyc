@@ -7,8 +7,11 @@ requires-python = ">=3.12"
 dependencies = [
    "dependency-injector>=4.48.3",
    "fastapi[standard]>=0.128.0",
+   "firebase-admin>=6.5.0",
+   "google-cloud-pubsub>=2.35.0",
    "loguru>=0.7.3",
    "psycopg2-binary>=2.9.11",
+   "PyJWT>=2.8.0",
    "pyyaml>=6.0",
    "ruff>=0.15.1",
    "sqlmodel>=0.0.31",

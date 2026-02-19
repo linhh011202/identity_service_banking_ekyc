@@ -52,6 +52,39 @@ class Configs:
         os.environ.get("POSTGRES_PORT") or _raw.get("database", {}).get("port", 5432)
     )
 
+    # JWT config
+    JWT_SECRET_KEY: str = os.environ.get("JWT_SECRET_KEY") or _raw.get("jwt", {}).get(
+        "secret_key", "change-me-in-production-use-a-long-random-secret"
+    )
+    JWT_ALGORITHM: str = _raw.get("jwt", {}).get("algorithm", "HS256")
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
+        os.environ.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+        or _raw.get("jwt", {}).get("access_token_expire_minutes", 60)
+    )
+
+    # GCS / Firebase Storage config
+    GCS_BUCKET_NAME: str = os.environ.get("GCS_BUCKET_NAME") or _raw.get("gcs", {}).get(
+        "bucket_name", ""
+    )
+    GCS_UPLOAD_PREFIX: str = os.environ.get("GCS_UPLOAD_PREFIX") or _raw.get(
+        "gcs", {}
+    ).get("upload_prefix", "uploads")
+    FIREBASE_CREDENTIALS_PATH: str = os.environ.get(
+        "FIREBASE_CREDENTIALS_PATH"
+    ) or _raw.get("firebase", {}).get("credentials_path", "firebase_credentials.json")
+    FIREBASE_UPLOAD_MAX_CONCURRENCY: int = int(
+        os.environ.get("FIREBASE_UPLOAD_MAX_CONCURRENCY")
+        or _raw.get("firebase", {}).get("upload_max_concurrency", 6)
+    )
+
+    # Google Cloud Pub/Sub config
+    GCP_PROJECT_ID: str = os.environ.get("GCP_PROJECT_ID") or _raw.get("gcp", {}).get(
+        "project_id", ""
+    )
+    PUBSUB_SIGNUP_TOPIC: str = os.environ.get("PUBSUB_SIGNUP_TOPIC") or _raw.get(
+        "pubsub", {}
+    ).get("signup_topic", "banking-ekyc-sign-up")
+
     # Other config
     TZ: str = _raw.get("timezone", "Asia/Singapore")
 

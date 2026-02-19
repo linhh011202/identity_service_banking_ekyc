@@ -15,4 +15,4 @@ app.log
 tests
 README.md
 makefile
-.env
+*.sql

@@ -11,8 +11,10 @@ wheels/
 .conda/
 
 # Environment variables
-.env
 config.yaml
+
+# Sensitive credentials
+firebase_credentials.json
 
 # Lock files
 
@@ -25,3 +27,6 @@ __pycache__/
 
 # IDE files
 *.egg-info
+
+# SQL files
+*.sql

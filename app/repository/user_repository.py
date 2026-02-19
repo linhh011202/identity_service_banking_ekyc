@@ -2,6 +2,7 @@ import logging
 from contextlib import AbstractContextManager
 from typing import Callable, Optional
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -76,3 +77,94 @@ class UserRepository(BaseRepository):
                 exc_info=True,
             )
             return None, Error(ErrDatabaseError.code, f"Database error: {str(e)}")
+
+    def save_ekyc_faces(
+        self,
+        email: str,
+        left_face_urls: list[str],
+        right_face_urls: list[str],
+        front_face_urls: list[str],
+    ) -> Error | None:
+        logger.info(f"Saving eKYC face upload info for user: {email}")
+        try:
+            with self.session_factory() as session:
+                user = (
+                    session.query(self.model).filter(self.model.email == email).first()
+                )
+                if user is None:
+                    logger.warning(f"User not found while saving eKYC faces: {email}")
+                    return Error(
+                        ErrUserNotFound.code,
+                        f"User with email '{email}' not found",
+                    )
+
+                session.execute(
+                    text(
+                        """
+                        DELETE FROM public.tb_user_faces
+                        WHERE user_id = :user_id
+                          AND pose IN ('left', 'right', 'straight')
+                        """
+                    ),
+                    {"user_id": user.id},
+                )
+
+                session.execute(
+                    text(
+                        """
+                        INSERT INTO public.tb_user_faces (user_id, pose, source_images)
+                        VALUES (:user_id, :pose, CAST(:source_images AS text[]))
+                        """
+                    ),
+                    {
+                        "user_id": user.id,
+                        "pose": "left",
+                        "source_images": left_face_urls,
+                    },
+                )
+                session.execute(
+                    text(
+                        """
+                        INSERT INTO public.tb_user_faces (user_id, pose, source_images)
+                        VALUES (:user_id, :pose, CAST(:source_images AS text[]))
+                        """
+                    ),
+                    {
+                        "user_id": user.id,
+                        "pose": "right",
+                        "source_images": right_face_urls,
+                    },
+                )
+                session.execute(
+                    text(
+                        """
+                        INSERT INTO public.tb_user_faces (user_id, pose, source_images)
+                        VALUES (:user_id, :pose, CAST(:source_images AS text[]))
+                        """
+                    ),
+                    {
+                        "user_id": user.id,
+                        "pose": "straight",
+                        "source_images": front_face_urls,
+                    },
+                )
+
+                session.execute(
+                    text(
+                        """
+                        UPDATE public.tb_users
+                        SET is_ekyc_uploaded = TRUE
+                        WHERE id = :user_id
+                        """
+                    ),
+                    {"user_id": user.id},
+                )
+                session.commit()
+                logger.info(f"Saved eKYC face upload info successfully for user: {email}")
+                return None
+        except Exception as e:
+            logger.error(
+                f"Database error while saving eKYC faces for '{email}': {str(e)}",
+                exc_info=True,
+            )
+            return Error(ErrDatabaseError.code, f"Database error: {str(e)}")

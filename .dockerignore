@@ -12,3 +12,10 @@ app.log
 tests
 README.md
 makefile
+
+# Config and Secrets
+config.yaml
+firebase_credentials.json
+
+# SQL files
+*.sql

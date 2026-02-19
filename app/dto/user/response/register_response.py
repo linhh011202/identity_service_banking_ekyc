@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 class RegisterResponse(BaseModel):
     email: Optional[str]
+    access_token: str
+    token_type: str = "bearer"
 
     class Config:
         from_attributes = True

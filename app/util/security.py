@@ -2,6 +2,52 @@ import os
 import binascii
 import hashlib
 import hmac
+from datetime import datetime, timedelta, timezone
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt import InvalidTokenError
+
+from app.core.config import Configs
+
+_configs = Configs()
+_bearer_scheme = HTTPBearer()
+
+
+def create_access_token(subject: str) -> str:
+    """Create a JWT access token for the given subject (e.g. user email)."""
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=_configs.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    payload = {"sub": subject, "exp": expire}
+    return jwt.encode(
+        payload, _configs.JWT_SECRET_KEY, algorithm=_configs.JWT_ALGORITHM
+    )
+
+
+def verify_access_token(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> str:
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(
+            token,
+            _configs.JWT_SECRET_KEY,
+            algorithms=[_configs.JWT_ALGORITHM],
+        )
+        subject = payload.get("sub")
+        if not subject:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+            )
+        return subject
+    except InvalidTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        ) from exc
 
 
 def hash_password(password: str) -> str:

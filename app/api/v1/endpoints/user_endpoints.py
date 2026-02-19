@@ -11,6 +11,7 @@ from app.dto.user.response.login_response import LoginResponse
 from app.dto.user.response.register_response import RegisterResponse
 from app.service.user_service import UserService
 from app.dto.user.request.login_request import LoginRequest
+from app.util.security import create_access_token
 
 
 router = APIRouter(prefix="/user", tags=["user"])
@@ -56,8 +57,9 @@ def register_user(
                 code=err.code, message=err.message
             ).model_dump(),
         )
+    token = create_access_token(subject=user.email)
     return BaseResponse.success_response(
-        data=RegisterResponse.model_validate(user),
+        data=RegisterResponse(email=user.email, access_token=token),
         message="User registered successfully",
     )
 
@@ -76,7 +78,8 @@ def login(
                 code=err.code, message=err.message
             ).model_dump(),
         )
+    token = create_access_token(subject=user.email)
     return BaseResponse.success_response(
-        data=LoginResponse.model_validate(user),
+        data=LoginResponse(email=user.email, access_token=token),
         message="Login successful",
     )
