@@ -3,8 +3,8 @@ from contextlib import AbstractContextManager
 from typing import Callable, Optional
 
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.core.ecode import Error
 from app.core.exceptions import ErrDatabaseError, ErrUserNotFound, ErrUserAlreadyExists
