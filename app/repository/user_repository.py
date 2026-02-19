@@ -160,7 +160,9 @@ class UserRepository(BaseRepository):
                     {"user_id": user.id},
                 )
                 session.commit()
-                logger.info(f"Saved eKYC face upload info successfully for user: {email}")
+                logger.info(
+                    f"Saved eKYC face upload info successfully for user: {email}"
+                )
                 return None
         except Exception as e:
             logger.error(
