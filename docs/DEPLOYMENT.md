@@ -1,11 +1,12 @@
 # Deployment Guide
 
-Deployment guide for the Identity Service Banking eKYC API to Google Cloud Run.
+Deployment guide for the Identity Service Banking eKYC API to Google Kubernetes Engine (GKE).
 
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) installed
 - [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) (`gcloud`) installed
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) installed
 - [uv](https://docs.astral.sh/uv/) package manager
 
 ---
@@ -29,9 +30,16 @@ docker-compose down
 
 ```bash
 gcloud auth login
-export PROJECT_ID="your-project-id"
+export PROJECT_ID="banking-ekyc-487718"
 export REGION="us-central1"
+export CLUSTER_NAME="banking-ekyc-cluster"
 gcloud config set project $PROJECT_ID
+```
+
+### Configure kubectl
+
+```bash
+gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION
 ```
 
 ---
@@ -45,7 +53,7 @@ gcloud artifacts repositories create identity-service \
   --location=$REGION \
   --description="Docker images for identity service"
 
-# Grant permission to Cloud Build
+# Grant permission to Cloud Build (if using Cloud Build triggers)
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
@@ -59,47 +67,58 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 ## 4. Build & Push Image
 
 ```bash
-gcloud builds submit \
-  --tag $REGION-docker.pkg.dev/$PROJECT_ID/identity-service/identity-service-banking-ekyc .
-```
+gcloud auth configure-docker $REGION-docker.pkg.dev
 
-> You need to create a `.gcloudignore` file to ensure `uv.lock` and `config.yaml` are uploaded to Cloud Build (as they are in `.gitignore`).
+# Build
+docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/identity-service/identity-service-banking-ekyc:latest .
 
----
-
-## 5. Google Secret Manager
-
-```bash
-# Enable API
-gcloud services enable secretmanager.googleapis.com
-
-# Create secret from config.yaml
-gcloud secrets create application-config --data-file=config.yaml
-
-# Update secret (when config changes)
-gcloud secrets versions add application-config --data-file=config.yaml
-
-# Grant read permission to Cloud Run service account
-PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+# Push
+docker push $REGION-docker.pkg.dev/$PROJECT_ID/identity-service/identity-service-banking-ekyc:latest
 ```
 
 ---
 
-## 6. Deploy to Cloud Run
+## 5. Kubernetes Configuration (GitOps)
+
+The Kubernetes manifests are stored in a separate repository (e.g., `gke_banking_ekyc`) or a `k8s-config` directory.
+
+### Cloning Configuration (if separate repo)
 
 ```bash
-gcloud run deploy identity-service-banking-ekyc \
-  --image $REGION-docker.pkg.dev/$PROJECT_ID/identity-service/identity-service-banking-ekyc:latest \
-  --platform managed \
-  --region $REGION \
-  --allow-unauthenticated \
-  --port 8080 \
-  --set-secrets="/app/secrets/config.yaml=application-config:latest" \
-  --max-instances 1 \
-  --min-instances 0
+git clone https://github.com/linhh011202/gke_banking_ekyc.git k8s-config
+cd k8s-config
+```
+
+### Secrets Management
+
+Secrets (like database credentials) are managed via Google Secret Manager and synced or injected into the cluster.
+In our `deploy.yml`, we fetch the config from Secret Manager and create a Kubernetes Secret.
+
+```bash
+# Create manual secret (for testing)
+kubectl create secret generic identity-service-secrets \
+  --from-file=config.yaml=./config.yaml \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+---
+
+## 6. Deploy to GKE
+
+```bash
+# Update image tag in deployment.yaml
+sed -i "s|image: .*|image: $REGION-docker.pkg.dev/$PROJECT_ID/identity-service/identity-service-banking-ekyc:latest|g" k8s-config/deployment.yaml
+
+# Apply manifests
+kubectl apply -f k8s-config/deployment.yaml
+kubectl apply -f k8s-config/service.yaml
+```
+
+To check status:
+
+```bash
+kubectl get pods
+kubectl get services
 ```
 
 ---
@@ -111,59 +130,30 @@ gcloud run deploy identity-service-banking-ekyc \
 | Workflow | Trigger | Function |
 | :--- | :--- | :--- |
 | `ci.yml` | Push/PR to `main` | Lint (`ruff`) + Test (`pytest`) |
-| `deploy.yml` | Push to `main` | CI → Update Secret → Build → Push → Deploy |
+| `deploy.yml` | Push to `main` | CI → Configure GKE creds → Create Secret → Deploy manifests |
 
-### 7a. Create Service Account
+### 7a. Service Account Permissions
+
+The service account used by GitHub Actions (`github-deployer`) requires the following roles:
+
+*   `roles/artifactregistry.writer` (Push images)
+*   `roles/container.developer` (Deploy to GKE)
+*   `roles/secretmanager.secretAccessor` (Read secrets)
+*   `roles/secretmanager.secretVersionAdder` (Add secret versions)
+*   `roles/iam.serviceAccountUser` (Act as service account)
 
 ```bash
-# Create SA
-gcloud iam service-accounts create github-deployer \
-  --display-name="GitHub Actions Deployer"
-
 SA_EMAIL="github-deployer@$PROJECT_ID.iam.gserviceaccount.com"
 
 # Grant permissions
-for ROLE in roles/artifactregistry.writer roles/run.admin roles/iam.serviceAccountUser roles/secretmanager.secretVersionAdder; do
+for ROLE in roles/artifactregistry.writer roles/container.developer roles/secretmanager.secretAccessor roles/secretmanager.secretVersionAdder roles/iam.serviceAccountUser; do
   gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$SA_EMAIL" \
     --role="$ROLE"
 done
 ```
 
-### 7b. Workload Identity Federation (instead of SA Key)
-
-> **Required if organization policy disables SA Key creation** (`iam.disableServiceAccountKeyCreation`).
-
-```bash
-PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
-GITHUB_REPO="your-github-user/your-repo-name"
-
-# 1. Create pool
-gcloud iam workload-identity-pools create "github-pool" \
-  --project="$PROJECT_ID" \
-  --location="global" \
-  --display-name="GitHub Actions Pool"
-
-# 2. Create provider (REQUIRED --attribute-condition)
-gcloud iam workload-identity-pools providers create-oidc "github-provider" \
-  --project="$PROJECT_ID" \
-  --location="global" \
-  --workload-identity-pool="github-pool" \
-  --display-name="GitHub Actions Provider" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository" \
-  --attribute-condition="assertion.repository == '$GITHUB_REPO'" \
-  --issuer-uri="https://token.actions.githubusercontent.com"
-
-# 3. Allow GitHub to impersonate SA
-gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
-  --project="$PROJECT_ID" \
-  --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/$GITHUB_REPO"
-```
-
-### 7c. GitHub Secrets
-
-Go to repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
+### 7b. GitHub Secrets
 
 | Secret Name | Content |
 | :--- | :--- |
@@ -171,20 +161,13 @@ Go to repo → **Settings** → **Secrets and variables** → **Actions** → **
 
 ---
 
-## 8. Required Code Changes for Cloud Run
+## 8. Required Code Changes
 
-```python
-# config.py — Add sslmode=require (Required for Neon DB)
-@property
-def DATABASE_URL(self) -> str:
-    return f"postgresql://...?sslmode=require"
+Ensure your application is container-ready:
 
-# database.py — Add connect timeout (avoid hanging at startup)
-create_engine(db_url, connect_args={"connect_timeout": 10}, pool_pre_ping=True)
-
-# main.py — Use /tmp for log (Cloud Run filesystem is read-only)
-logging.FileHandler("/tmp/app.log")
-```
+*   **Database**: Use `sslmode=require` for Neon DB.
+*   **Logging**: Log to stdout/stderr (e.g., using `uvicorn` default logging) or a writable path like `/tmp` if file logging is needed.
+*   **Health Checks**: Ensure `/health` or `/` endpoint is available for Kubernetes liveness/readiness probes.
 
 ---
 
@@ -192,14 +175,8 @@ logging.FileHandler("/tmp/app.log")
 
 | Error | Cause | Fix |
 | :--- | :--- | :--- |
-| `gcr.io repo does not exist` | GCR deprecated | Use Artifact Registry |
-| `uploadArtifacts denied` | SA missing permission | Grant `roles/artifactregistry.writer` |
-| `stat uv.lock: not exist` | `.gcloudignore` missing | Create `.gcloudignore` |
-| `fastapi: not found` | WORKDIR builder ≠ runtime | Set WORKDIR to `/app` in builder stage |
-| `secret access denied` | SA missing permission | Grant `roles/secretmanager.secretAccessor` |
-| `invalid_target` WIF | Provider not created | Create provider with `--attribute-condition` |
-| `versions.add denied` | SA missing permission | Grant `roles/secretmanager.secretVersionAdder` |
-| `workflow not reusable` | Missing `workflow_call` | Add `workflow_call:` to `on:` in `ci.yml` |
-| `uv.lock not found --frozen` | `uv.lock` is gitignored | Remove `uv.lock` from `.gitignore` |
-| `Container failed to start` | Log file on read-only FS | Change to `/tmp/app.log` |
-| `Container failed to start` | DB hanging (missing SSL/timeout) | Add `sslmode=require` + `connect_timeout` |
+| `files list file for package '...' is missing final newline` | Apt/dpkg corruption in image | Rebuild base image or clear apt cache in Dockerfile |
+| `ImagePullBackOff` | Docker image not found or private | Check image URL and ImagePullSecrets (or Workload Identity on node) |
+| `CrashLoopBackOff` | App crashing on start | Check logs: `kubectl logs <pod-name>` |
+| `ResponseError: code=403 ... container.clusters.get` | SA missing GKE permission | Grant `roles/container.developer` |
+| `CreateContainerConfigError` | Missing Secret/ConfigMap | Ensure `kubectl create secret` step ran successfully |
