@@ -67,6 +67,7 @@ def test_upload_photos_success_publishes_event(
             left_faces=[mock_file],
             right_faces=[mock_file],
             front_faces=[mock_file],
+            fcm_token="test-fcm-token",
         )
 
     # Act
@@ -79,7 +80,7 @@ def test_upload_photos_success_publishes_event(
 
     # Verify PubSub event published
     mock_pubsub_service.publish_signup_event.assert_called_once_with(
-        email=user_email, session_id=ANY
+        user_id=ANY, session_id=ANY
     )
 
 
@@ -99,6 +100,7 @@ def test_upload_photos_failure_no_publish(
             left_faces=[mock_file],
             right_faces=[mock_file],
             front_faces=[mock_file],
+            fcm_token="test-fcm-token",
         )
 
     # Act
@@ -133,6 +135,7 @@ def test_login_success_publishes_signin_event(
         return await ekyc_service.login(
             user_email=user_email,
             faces=[mock_file, mock_file, mock_file],
+            fcm_token="test-fcm-token",
         )
 
     # Act
@@ -147,7 +150,7 @@ def test_login_success_publishes_signin_event(
 
     # Verify PubSub event published
     mock_pubsub_service.publish_signin_event.assert_called_once_with(
-        email=user_email, session_id=ANY
+        user_id=ANY, session_id=ANY
     )
 
     # Verify save_login_faces called
@@ -171,6 +174,7 @@ def test_login_failure_no_publish(
         return await ekyc_service.login(
             user_email=user_email,
             faces=[mock_file, mock_file, mock_file],
+            fcm_token="test-fcm-token",
         )
 
     # Act
@@ -195,6 +199,7 @@ def test_login_failure_invalid_photo_count(
         return await ekyc_service.login(
             user_email=user_email,
             faces=[mock_file],  # Only 1 photo
+            fcm_token="test-fcm-token",
         )
 
     # Act
