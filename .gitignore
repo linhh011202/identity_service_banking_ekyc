@@ -10,11 +10,19 @@ wheels/
 .venv
 .conda/
 
-# Environment variables
+# Environment variables & local config — contain passwords/API keys
 config.yaml
+.env
+.env.*
 
-# Sensitive credentials
+# Sensitive credentials & key material — NEVER commit these
 firebase_credentials.json
+*credentials*.json
+*service_account*.json
+*.key
+*.pem
+*.p12
+*.pfx
 
 # Lock files
 
