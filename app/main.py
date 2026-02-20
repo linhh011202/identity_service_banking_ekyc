@@ -1,6 +1,7 @@
 import logging
 import sys
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
 from app.api.v1.routes import routers as v1_routers
 from app.core.config import configs
@@ -17,6 +18,17 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("/tmp/app.log")],
 )
 logger = logging.getLogger(__name__)
+
+
+class HealthCheckFilter(logging.Filter):
+    """Suppress uvicorn access logs for the /health endpoint."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/health" not in record.getMessage()
+
+
+# Suppress noisy health-check logs from uvicorn access logger
+logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
 
 @singleton
@@ -60,6 +72,10 @@ class AppCreator:
         @self.app.get("/")
         def root():
             return "service is working"
+
+        @self.app.get("/health", include_in_schema=False)
+        def health():
+            return JSONResponse(content={"status": "ok"})
 
         self.app.include_router(v1_routers, prefix=configs.API_V1_STR)
         logger.info(f"Routes registered. API available at {configs.API_V1_STR}")
