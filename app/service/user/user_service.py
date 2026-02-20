@@ -6,7 +6,7 @@ from app.core.exceptions import ErrInvalidCredentials
 from app.util.security import hash_password, verify_password
 from app.model import UserModel
 from app.repository import UserRepository
-from app.service.base_service import BaseService
+from app.service.base.base_service import BaseService
 
 logger = logging.getLogger(__name__)
 

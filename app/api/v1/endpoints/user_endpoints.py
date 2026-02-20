@@ -9,7 +9,7 @@ from app.dto.user.request.register_request import RegisterRequest
 from app.dto.user.response.get_user_response import GetUserResponse
 from app.dto.user.response.login_response import LoginResponse
 from app.dto.user.response.register_response import RegisterResponse
-from app.service.user_service import UserService
+from app.service.user.user_service import UserService
 from app.dto.user.request.login_request import LoginRequest
 from app.util.security import create_access_token
 

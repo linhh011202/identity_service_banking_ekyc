@@ -84,6 +84,9 @@ class Configs:
     PUBSUB_SIGNUP_TOPIC: str = os.environ.get("PUBSUB_SIGNUP_TOPIC") or _raw.get(
         "pubsub", {}
     ).get("signup_topic", "banking-ekyc-sign-up")
+    PUBSUB_SIGNIN_TOPIC: str = os.environ.get("PUBSUB_SIGNIN_TOPIC") or _raw.get(
+        "pubsub", {}
+    ).get("signin_topic", "banking-ekyc-sign-in")
 
     # Other config
     TZ: str = _raw.get("timezone", "Asia/Singapore")

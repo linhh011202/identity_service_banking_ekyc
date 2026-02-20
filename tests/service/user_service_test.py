@@ -7,7 +7,7 @@ import pytest
 from app.core.ecode import Error
 from app.core.exceptions import ErrInvalidCredentials, ErrUserNotFound
 from app.model import UserModel
-from app.service.user_service import UserService
+from app.service.user.user_service import UserService
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ class TestGetUserByEmail:
 
 
 class TestRegisterUser:
-    @patch("app.service.user_service.hash_password", return_value="hashed_pw")
+    @patch("app.service.user.user_service.hash_password", return_value="hashed_pw")
     def test_success(self, mock_hash, service, mock_repo):
         user = _make_user(password_hashed="hashed_pw")
         mock_repo.create.return_value = (user, None)
@@ -95,7 +95,7 @@ class TestRegisterUser:
         assert result_user == user
         assert result_error is None
 
-    @patch("app.service.user_service.hash_password", return_value="hashed_pw")
+    @patch("app.service.user.user_service.hash_password", return_value="hashed_pw")
     def test_duplicate_email(self, mock_hash, service, mock_repo):
         error = Error(4090001, "user already exists")
         mock_repo.create.return_value = (None, error)
@@ -108,7 +108,7 @@ class TestRegisterUser:
         assert result_user is None
         assert result_error.code == 4090001
 
-    @patch("app.service.user_service.hash_password", return_value="hashed_pw")
+    @patch("app.service.user.user_service.hash_password", return_value="hashed_pw")
     def test_optional_fields_default_to_none(self, mock_hash, service, mock_repo):
         mock_repo.create.return_value = (_make_user(), None)
 
@@ -128,7 +128,7 @@ class TestRegisterUser:
 
 
 class TestLogin:
-    @patch("app.service.user_service.verify_password", return_value=True)
+    @patch("app.service.user.user_service.verify_password", return_value=True)
     def test_success(self, mock_verify, service, mock_repo):
         user = _make_user()
         mock_repo.get_by_email.return_value = (user, None)
@@ -149,7 +149,7 @@ class TestLogin:
         assert result_user is None
         assert result_error.code == ErrUserNotFound.code
 
-    @patch("app.service.user_service.verify_password", return_value=False)
+    @patch("app.service.user.user_service.verify_password", return_value=False)
     def test_invalid_password(self, mock_verify, service, mock_repo):
         user = _make_user()
         mock_repo.get_by_email.return_value = (user, None)

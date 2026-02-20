@@ -14,9 +14,11 @@ from fastapi.concurrency import run_in_threadpool
 from app.core.config import configs
 from app.core.ecode import Error
 from app.core.exceptions import ErrInternalError
-from app.dto.ekyc.response.upload_photos_response import UploadPhotosResponse
-from app.repository import UserRepository
-from app.service.base_service import BaseService
+from app.service.ekyc.ekyc_service_login_result import EkycServiceLoginResult
+from app.service.ekyc.ekyc_service_upload_result import EkycServiceUploadResult
+from app.repository import UserFaceRepository, UserRepository
+from app.service.base.base_service import BaseService
+from app.service.pubsub.pubsub_service import PubsubService
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +41,15 @@ def _get_firebase_app() -> firebase_admin.App:
 
 
 class EkycService(BaseService):
-    def __init__(self, user_repository: UserRepository) -> None:
+    def __init__(
+        self,
+        user_repository: UserRepository,
+        user_face_repository: UserFaceRepository,
+        pubsub_service: PubsubService,
+    ) -> None:
         self._user_repository = user_repository
+        self._user_face_repository = user_face_repository
+        self._pubsub_service = pubsub_service
         super().__init__(user_repository)
         self._bucket_name = configs.GCS_BUCKET_NAME
         self._upload_prefix = (configs.GCS_UPLOAD_PREFIX or "uploads").strip("/")
@@ -107,7 +116,7 @@ class EkycService(BaseService):
         left_faces: List[UploadFile],
         right_faces: List[UploadFile],
         front_faces: List[UploadFile],
-    ) -> tuple[UploadPhotosResponse | None, Error | None]:
+    ) -> tuple[EkycServiceUploadResult | None, Error | None]:
         logger.info(f"Uploading eKYC face photos for user: {user_email}")
 
         try:
@@ -141,15 +150,17 @@ class EkycService(BaseService):
                 left_task, right_task, front_task
             )
 
-            response_data = UploadPhotosResponse(
-                left_face_urls=left_face_urls,
-                right_face_urls=right_face_urls,
-                front_face_urls=front_face_urls,
+            response_data = EkycServiceUploadResult(
                 session_id=session_id,
             )
 
-            save_error = self._user_repository.save_ekyc_faces(
-                email=user_email,
+            user, user_err = self._user_repository.get_by_email(user_email)
+            if user_err:
+                logger.error(f"User not found during eKYC upload: {user_email}")
+                return None, user_err
+
+            save_error = self._user_face_repository.save_ekyc_faces(
+                user_id=user.id,
                 left_face_urls=left_face_urls,
                 right_face_urls=right_face_urls,
                 front_face_urls=front_face_urls,
@@ -161,12 +172,25 @@ class EkycService(BaseService):
                 )
                 return None, save_error
 
+            mark_error = self._user_repository.mark_ekyc_uploaded(user.id)
+            if mark_error:
+                logger.warning(
+                    f"Faces saved but failed to mark eKYC as uploaded for {user_email}: "
+                    f"{mark_error.message}"
+                )
+
             total_uploaded = len(left_faces) + len(right_faces) + len(front_faces)
             elapsed_seconds = time.perf_counter() - started_at
             logger.info(
                 f"{total_uploaded} face photos uploaded successfully for session: "
                 f"{session_id} in {elapsed_seconds:.2f}s (max_concurrency={self._upload_max_concurrency})"
             )
+
+            # Fire-and-forget: publish sign-up event to Pub/Sub
+            self._pubsub_service.publish_signup_event(
+                email=user_email, session_id=session_id
+            )
+
             return response_data, None
 
         except (RuntimeError, ValueError) as e:
@@ -176,4 +200,71 @@ class EkycService(BaseService):
             logger.error(f"Failed to upload photos: {str(e)}")
             return None, Error(
                 ErrInternalError.code, "Internal server error during photo upload"
+            )
+
+    async def login(
+        self,
+        user_email: str,
+        faces: List[UploadFile],
+    ) -> tuple[EkycServiceLoginResult | None, Error | None]:
+        logger.info(f"Processing eKYC login for user: {user_email}")
+
+        if len(faces) != 3:
+            return None, Error(400, "Exactly 3 face photos are required for login")
+
+        try:
+            started_at = time.perf_counter()
+            session_id = str(uuid.uuid4())
+            bucket = self._get_bucket()
+            semaphore = asyncio.Semaphore(self._upload_max_concurrency)
+
+            # Upload faces
+            face_urls = await self._upload_group(
+                bucket=bucket,
+                session_id=session_id,
+                semaphore=semaphore,
+                face_prefix="login_face",
+                files=faces,
+            )
+
+            # Verify user exists and get user_id
+            user, user_err = self._user_repository.get_by_email(user_email)
+            if user_err:
+                logger.error(f"User not found during eKYC login: {user_email}")
+                return None, user_err
+
+            # Save to database
+            save_error = self._user_face_repository.save_login_faces(
+                user_id=user.id, face_urls=face_urls
+            )
+            if save_error:
+                logger.error(
+                    f"Uploaded login photos but failed to persist DB records for user "
+                    f"{user_email}: {save_error.message}"
+                )
+                return None, save_error
+
+            elapsed_seconds = time.perf_counter() - started_at
+            logger.info(
+                f"Login photos uploaded successfully for session: "
+                f"{session_id} in {elapsed_seconds:.2f}s"
+            )
+
+            # Fire-and-forget: publish sign-in event
+            self._pubsub_service.publish_signin_event(
+                email=user_email, session_id=session_id
+            )
+
+            return (
+                EkycServiceLoginResult(session_id=session_id),
+                None,
+            )
+
+        except (RuntimeError, ValueError) as e:
+            logger.error(f"Failed to upload login photos to Firebase Storage: {str(e)}")
+            return None, Error(ErrInternalError.code, "Photo upload failed")
+        except Exception as e:
+            logger.error(f"Failed to upload photos for login: {str(e)}")
+            return None, Error(
+                ErrInternalError.code, "Internal server error during login photo upload"
             )
