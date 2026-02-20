@@ -76,6 +76,9 @@ class Configs:
         os.environ.get("FIREBASE_UPLOAD_MAX_CONCURRENCY")
         or _raw.get("firebase", {}).get("upload_max_concurrency", 6)
     )
+    FIREBASE_RTDB_URL: str = os.environ.get("FIREBASE_RTDB_URL") or _raw.get(
+        "firebase", {}
+    ).get("rtdb_url", "")
 
     # Google Cloud Pub/Sub config
     GCP_PROJECT_ID: str = os.environ.get("GCP_PROJECT_ID") or _raw.get("gcp", {}).get(

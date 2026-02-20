@@ -41,52 +41,58 @@ class PubsubService:
             )
         return self._publisher
 
-    def publish_signup_event(self, email: str, session_id: str) -> None:
+    def publish_signup_event(self, user_id: str, session_id: str) -> None:
         """Fire-and-forget publish of a sign-up event."""
         try:
             publisher = self._get_publisher()
         except Exception as exc:
-            logger.warning(f"Pub/Sub unavailable, skipping publish for {email}: {exc}")
+            logger.warning(
+                f"Pub/Sub unavailable, skipping publish for user_id={user_id}: {exc}"
+            )
             return
 
         message = {
             "event": Event.SIGN_UP,
-            "email": email,
+            "user_id": str(user_id),
             "session_id": session_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         data = json.dumps(message).encode("utf-8")
         future = publisher.publish(self._signup_topic_path, data=data)
         future.add_done_callback(
-            lambda f: self._on_publish_done(f, email, Event.SIGN_UP)
+            lambda f: self._on_publish_done(f, user_id, Event.SIGN_UP)
         )
 
-    def publish_signin_event(self, email: str, session_id: str) -> None:
+    def publish_signin_event(self, user_id: str, session_id: str) -> None:
         """Fire-and-forget publish of a sign-in event."""
         try:
             publisher = self._get_publisher()
         except Exception as exc:
-            logger.warning(f"Pub/Sub unavailable, skipping publish for {email}: {exc}")
+            logger.warning(
+                f"Pub/Sub unavailable, skipping publish for user_id={user_id}: {exc}"
+            )
             return
 
         message = {
             "event": Event.SIGN_IN,
-            "email": email,
+            "user_id": str(user_id),
             "session_id": session_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         data = json.dumps(message).encode("utf-8")
         future = publisher.publish(self._signin_topic_path, data=data)
         future.add_done_callback(
-            lambda f: self._on_publish_done(f, email, Event.SIGN_IN)
+            lambda f: self._on_publish_done(f, user_id, Event.SIGN_IN)
         )
 
     @staticmethod
-    def _on_publish_done(future, email: str, event_type: str) -> None:
+    def _on_publish_done(future, user_id: str, event_type: str) -> None:
         try:
             message_id = future.result()
             logger.info(
-                f"Published {event_type} event for {email}, message_id={message_id}"
+                f"Published {event_type} event for user_id={user_id}, message_id={message_id}"
             )
         except Exception as exc:
-            logger.error(f"Failed to publish {event_type} event for {email}: {exc}")
+            logger.error(
+                f"Failed to publish {event_type} event for user_id={user_id}: {exc}"
+            )

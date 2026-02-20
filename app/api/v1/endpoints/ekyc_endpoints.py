@@ -26,6 +26,7 @@ async def upload_photos(
         left_faces=request.left_faces,
         right_faces=request.right_faces,
         front_faces=request.front_faces,
+        fcm_token=request.fcm_token,
     )
     if err:
         return JSONResponse(
@@ -50,6 +51,7 @@ async def login(
     result, err = await ekyc_service.login(
         user_email=request.email,
         faces=request.faces,
+        fcm_token=request.fcm_token,
     )
     if err:
         return JSONResponse(

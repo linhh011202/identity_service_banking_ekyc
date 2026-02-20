@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List
 
 import firebase_admin
-from firebase_admin import credentials, storage
+from firebase_admin import credentials, db, storage
 from fastapi import UploadFile
 from fastapi.concurrency import run_in_threadpool
 
@@ -30,11 +30,15 @@ def _get_firebase_app() -> firebase_admin.App:
     if _firebase_app is None:
         cred_path = Path(configs.FIREBASE_CREDENTIALS_PATH)
         if not cred_path.is_absolute():
-            # Resolve relative path from project root (2 levels up from this file)
-            cred_path = Path(__file__).resolve().parents[2] / cred_path
+            # Resolve relative path from project root (3 levels up from this file)
+            cred_path = Path(__file__).resolve().parents[3] / cred_path
         cred = credentials.Certificate(str(cred_path))
         _firebase_app = firebase_admin.initialize_app(
-            cred, {"storageBucket": configs.GCS_BUCKET_NAME}
+            cred,
+            {
+                "storageBucket": configs.GCS_BUCKET_NAME,
+                "databaseURL": configs.FIREBASE_RTDB_URL,
+            },
         )
         logger.info("Firebase Admin app initialized")
     return _firebase_app
@@ -61,6 +65,19 @@ class EkycService(BaseService):
             raise ValueError("Firebase Storage bucket is not configured")
         _get_firebase_app()
         return storage.bucket()
+
+    @staticmethod
+    def _save_fcm_token(session_id: str, fcm_token: str) -> None:
+        """Save FCM registration token to Firebase Realtime Database."""
+        try:
+            _get_firebase_app()
+            ref = db.reference(f"/sessions/{session_id}")
+            ref.set({"fcm_token": fcm_token})
+            logger.info(f"Saved FCM token to RTDB for session: {session_id}")
+        except Exception as e:
+            logger.error(
+                f"Failed to save FCM token to RTDB for session {session_id}: {e}"
+            )
 
     @staticmethod
     def _resolve_extension(upload_file: UploadFile) -> str:
@@ -116,12 +133,17 @@ class EkycService(BaseService):
         left_faces: List[UploadFile],
         right_faces: List[UploadFile],
         front_faces: List[UploadFile],
+        fcm_token: str,
     ) -> tuple[EkycServiceUploadResult | None, Error | None]:
         logger.info(f"Uploading eKYC face photos for user: {user_email}")
 
         try:
             started_at = time.perf_counter()
             session_id = str(uuid.uuid4())
+
+            # Save FCM token to Firebase Realtime Database
+            await run_in_threadpool(self._save_fcm_token, session_id, fcm_token)
+
             bucket = self._get_bucket()
             semaphore = asyncio.Semaphore(self._upload_max_concurrency)
 
@@ -188,7 +210,7 @@ class EkycService(BaseService):
 
             # Fire-and-forget: publish sign-up event to Pub/Sub
             self._pubsub_service.publish_signup_event(
-                email=user_email, session_id=session_id
+                user_id=str(user.id), session_id=session_id
             )
 
             return response_data, None
@@ -206,6 +228,7 @@ class EkycService(BaseService):
         self,
         user_email: str,
         faces: List[UploadFile],
+        fcm_token: str,
     ) -> tuple[EkycServiceLoginResult | None, Error | None]:
         logger.info(f"Processing eKYC login for user: {user_email}")
 
@@ -215,6 +238,10 @@ class EkycService(BaseService):
         try:
             started_at = time.perf_counter()
             session_id = str(uuid.uuid4())
+
+            # Save FCM token to Firebase Realtime Database
+            await run_in_threadpool(self._save_fcm_token, session_id, fcm_token)
+
             bucket = self._get_bucket()
             semaphore = asyncio.Semaphore(self._upload_max_concurrency)
 
@@ -252,7 +279,7 @@ class EkycService(BaseService):
 
             # Fire-and-forget: publish sign-in event
             self._pubsub_service.publish_signin_event(
-                email=user_email, session_id=session_id
+                user_id=str(user.id), session_id=session_id
             )
 
             return (
